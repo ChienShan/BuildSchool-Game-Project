@@ -1,0 +1,25 @@
+﻿
+    <div class="test" id="Video">
+        <div class="countdown">
+            <label v-show="isCountdown">{{times}}</label>
+        </div>
+        <div class="emoji">
+            <label v-show="alertEmoji">{{emojiSubject}}</label>
+        </div>
+        <div class="userVideo">
+            <video ref="video" id="localVideo" width="480" height="360" autoplay muted style="object-fit:fill"></video>
+        </div>
+
+        <div class="goButtom">
+            <el-button type="warning" circle id="snap" v-on:click="capture()"  :hidden="isDisabled">@*:disabled="isDisabled"*@
+                <strong>Go!</strong>
+            </el-button>
+        </div>
+        <canvas ref="canvas" id="canvas" width="480" height="360"></canvas>
+        <ul>
+            <li v-for="c in captures" :key="c">
+                <img v-bind:src="c" height="50" />
+            </li>
+        </ul>
+    </div>
+

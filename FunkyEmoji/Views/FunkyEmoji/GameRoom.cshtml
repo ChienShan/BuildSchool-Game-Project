@@ -1,0 +1,447 @@
+﻿
+@{
+    ViewData["Title"] = "GameRoom";
+}
+
+<div class="room2" id="room">
+    <div class="container">
+        <div class="row">
+            <div class="col-3">
+                <el-aside class="aside">
+                    <div class="localInform">
+                        <el-col :xs="8" :sm="6" :md="4" :lg="3" :xl="1">
+                            <div class="avatar">
+                                <img src="~/images/1200px-Noto_Emoji_KitKat_263a.svg.webp" />
+                            </div>
+                        </el-col>
+                        <div class="infosPlayer">
+                            <el-col :xs="4" :sm="6" :md="8" :lg="9" :xl="11">
+                                <el-row>
+                                    <span class="nick"></span>
+                                </el-row>
+                                <el-row>
+                                    <span class="points">{{userScore}}<i>pts</i></span>
+                                </el-row>
+                            </el-col>
+                        </div>
+                    </div>
+
+                    @* 背景音樂 *@
+                    <audio id="myaudio" autoplay controls loop hidden>
+                        <!-- <source src="horse.ogg" type="audio/ogg"> -->
+                        <source src="~/Music/music.mp3" type="audio/mpeg">
+                    </audio>
+
+                    <el-row>
+                        <h5>Oher Player</h5>
+                    </el-row>
+
+                    <div class="others">
+                        <el-row>
+                            <video id="remoteVideo" width="200" height="170" autoplay></video>
+                        </el-row>
+                    </div>
+                </el-aside>
+            </div>
+            <div class="col-6">
+                <el-main class="main">
+                    <el-row>
+                        <partial name="_VideoPartial" />
+                        @*<video-partial></video-partial>*@
+                    </el-row>
+                </el-main>
+            </div>
+            <div class="col-3">
+                <el-aside>
+                    <div class="chatRoom">
+                        <el-row>
+
+                            <div class="textContent scroll scroll1">
+                                <ul v-for="(item, index) in messages" v-bind:key="index + 'itemmessage'">
+                                    <li><b>{{item.user}} 說 {{item.message}}</b></li>
+                                </ul>
+                                <ul v-for="(item, index) in scores" v-bind:key="index + 'itemMessage'">
+                                    <li><b>{{item.user}} 總計 {{item.score}} 分</b></li>
+                                </ul>
+                            </div>
+                        </el-row>
+
+                        @*<div class="userInput">*@
+
+                        <el-row><el-input type="text" name="Name" id="userName" v-model="userName" placeholder="請輸入名稱" disabled="disabled" /> </el-row>
+                        <el-row><el-input type="text" name="Message" id="userMessage" v-model="userMessage" placeholder="請輸入內容" /></el-row>
+
+                        <el-row>
+                            <el-button round type="warning" v-on:click="submitCard">
+                                <strong>Send</strong>
+                            </el-button>
+                            @*</div>*@
+                        </el-row>
+                    </div>
+                </el-aside>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+@section topCSS{
+    <link href="~/fonts/fonts.css" rel="stylesheet" />
+    <link href="~/css/_Player.css" rel="stylesheet" />
+    <link href="~/css/_Video.css" rel="stylesheet" />
+    <link href="~/css/localhost.css" rel="stylesheet" />
+}
+
+@section endJS{
+    <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+    <script src="https://unpkg.com/element-ui/lib/index.js"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <script type='text/javascript' src='https://cdn.scaledrone.com/scaledrone.min.js'></script>
+    <script src="~/js/signalr/dist/browser/signalr.js"></script>
+    @*<script src="~/js/_Player.js"></script>*@
+    <script src="~/js/_Video.js"></script>
+    <script src="~/js/webRTCscript.js"></script>
+
+    @*<script src="~/store/index.js"></script>*@
+    <script>
+        var app
+        var disabled = false
+        document.addEventListener("DOMContentLoaded", function (event) {
+
+            //請使用者輸入名字
+            var name;
+            if (localStorage.getItem('User') == null) {
+                localStorage.clear();
+                name = prompt('Enter your name:', '');
+                disabled = true
+                //isDisabled = true;
+            }
+
+            else {
+                name = JSON.parse(localStorage.getItem('User')).account
+            }
+
+            //接使用者名稱
+            document.getElementsByClassName('nick')[0].innerHTML = name
+
+
+            //亂數出題目
+            var emotions = ["anger", "contempt", "disgust", "fear", "happiness", "neutral", "sadness", "surprise"];
+            var translate = ["臉臭生氣", "鄙視眉毛扭曲", "厭惡把臉弄很皺", "恐懼眉毛傾斜", "快樂露出牙齒", "中性臉冷靜", "悲傷臉很衰", "驚訝嘴巴打超開"];
+            var emoji;
+
+            app = new Vue({
+                el: '#room',
+                data() {
+
+                    return {
+                        // -----Video------
+                        video: {},
+                        canvas: {},
+                        captures: [],
+                        // image:backgroundImage,
+
+                        //題目
+                        alertEmoji: false,
+                        emojiSubject: "",
+
+                        //倒數
+                        isCountdown: false,
+                        times: 3,
+                        isDisabled: disabled,
+
+                        // -----留言------
+                        userName: name,
+                        userMessage: "",
+                        connection: "",
+                        messages: [],
+
+                        //-----分數-------
+                        userScore: 0,
+                        scores: [],
+                    }
+
+
+                },
+                computed: {
+                    user() {
+                        return store.state.user;
+                    },
+                },
+                methods: {
+                    // -----Video------
+                    capture: function () {
+                        this.video = this.$refs.video;
+
+                        emoji = Math.floor(Math.random() * emotions.length);
+                        //把題目位址、時間倒數傳給所有人
+                        if (true) {
+                            this.connection.invoke("SendSubject", emoji.toString(), this.times.toString()).catch(function (err) {
+                                return console.error(err.toString());
+                            })
+
+                        }
+
+                        //顯示題目
+                        this.alertEmoji = true;
+                        this.emojiSubject = translate[emoji];
+
+
+                        //倒數計時
+                        this.isCountdown = true;
+                        this.isDisabled = true;
+                        let clock = window.setInterval(() => {
+                            this.times--;
+                            if (this.times < 0) {
+                                window.clearInterval(clock);
+
+                                //畫面重置
+                                this.times = 3;
+                                this.isCountdown = false;
+                                this.alertEmoji = false;
+                                this.isDisabled = false;
+                                this.emojiSubject = "";
+
+                                this.canvas = this.$refs.canvas;
+                                var context = this.canvas
+                                    .getContext("2d")
+                                    .drawImage(this.video, 0, 0, 480, 360);
+                                this.captures.push(canvas.toDataURL("image/png"));
+                                var imgData = canvas.toDataURL("image/png");
+
+                                const userRequest = axios.create({
+                                    baseURL: "https://eastasia.api.cognitive.microsoft.com/face/v1.0/detect?returnFaceAttributes=emotion",
+                                    headers: {
+                                        "Ocp-Apim-Subscription-Key": "8707bd81a0fb489f81cb0c310f5381dc",
+                                        "Content-Type": "application/octet-stream"
+                                    }
+                                });
+
+                                //回傳分數後透過signalR傳送
+                                userRequest.post('', makeblob(imgData))
+                                    .then(res => {
+                                        //alert(Reflect.get(res.data[0].faceAttributes.emotion, "anger"))
+                                        this.userScore = Math.round(this.userScore + Reflect.get(res.data[0].faceAttributes.emotion, emotions[emoji]) * 100)
+
+                                        console.log(this.userScore);
+                                        //alert(Reflect.get(res.data[0].faceAttributes.emotion, emotions[emoji]) * 100)
+
+                                        this.connection.invoke('SendMessage', this.userName, '我得' + Math.round(Reflect.get(res.data[0].faceAttributes.emotion, emotions[emoji]) * 100).toString() + '分').catch(function (err) {
+                                            return console.error(err.toString());
+                                        });
+
+                                        //push localhost score
+                                        let localUser = $.map(this.scores, function (item, index) {
+                                            return item.user
+                                        }).indexOf(name)
+
+                                        if (localUser > -1) {
+                                            //let thisuserScore = app.scores[app.scores.user.indexOf(user)].score;
+                                            this.scores[localUser].score = this.userScore;
+
+                                        }
+                                        else {
+                                            let score = this.userScore;
+                                            let user = name;
+                                            this.scores.push({ user, score });
+                                        }
+
+
+
+
+                                        if (true) {
+                                            this.connection.invoke('SendScore', this.userName, this.userScore.toString()).catch(function (err) {
+                                                return console.error(err.toString());
+                                            });
+                                        }
+
+                                        //this.findRankOne();
+                                    })
+
+                            }
+                        }, 1000);
+
+
+                        //alert(`恭喜獲得${Reflect.get(res.faceAttributes.emotion, emotion[emoji]) * 10}分`)
+                    },
+                    // -----留言------
+                    submitCard: function () {
+                        if (this.userName && this.userMessage) {
+                            this.connection.invoke('SendMessage', this.userName, this.userMessage.toString()).catch(function (err) {
+                                return console.error(err.toString());
+                            });
+
+                            // 欄位 清空
+                            //this.userName = '';
+                            this.userMessage = '';
+                        }
+                    },
+
+                    // -----輸贏-----
+                    findRankOne: function () {
+
+                        if (app.scores[0].score >= 200 || app.scores[1].score >= 200) {
+
+                            if (app.scores[0].score == app.scores[1].score) {
+
+                                app.Show('遊戲結束 兩人平手(❁´◡`❁)')
+                            }
+
+
+                            else if (app.scores[0].score < app.scores[1].score) {
+                                app.Show(`'遊戲結束 ${app.scores[1].user} 得 ${app.scores[1].score} 獲勝'`)
+                            }
+
+                            else if (app.scores[0].score > app.scores[1].score) {
+                                app.Show(`'遊戲結束 ${app.scores[0].user} 得 ${app.scores[0].score} 獲勝'`)
+                            }
+
+                            //畫面轉向
+
+                        }
+
+                    },
+
+                    Show: function (string) {
+                        this.connection.invoke('SendMessage', '遊戲', string).catch(function (err) {
+                            return console.error(err.toString());
+                        });
+                        this.$alert(string, '遊戲結束', {
+                            confirmButtonText: '離開遊戲',
+                            callback: action => {
+                                location.href = '../../FunkyEmoji/Login';
+                            }
+                        });
+                    }
+                },
+                created: function () {
+                    //this.connection = new signalR.HubConnectionBuilder()
+                    //    .withUrl('/chatHub')
+                    //    .configureLogging(signalR.LogLevel.Information)
+                    //    .build();
+                    this.connection = new signalR.HubConnectionBuilder().withUrl("/chatHub").build();
+                    this.connection.start().catch(function (err) {
+                        return console.error(err.toString());
+                    });
+
+
+                    //if (!this.user.account) {
+                    //    location.href = 'GameRoom';
+                    //}
+                },
+                mounted: function () {
+                    // -----Video------
+                    //this.getVideo();
+
+                    // -----留言------
+                    var thisVue = this;
+                    if (thisVue.connection == "") thisVue.connection.start();
+                    thisVue.connection.on('ReceiveMessage', function (user, message) {
+                        thisVue.messages.push({ user, message });
+                    });
+
+                    // -----題目、時間倒數、截圖分數顯示-----
+                    thisVue.connection.on('ReceiveSubject', function (emoji, time) {
+                        app.video = app.$refs.video;
+
+                        //顯示題目
+                        app.alertEmoji = true;
+                        app.emojiSubject = translate[parseInt(emoji)];
+
+                        var timecount = parseInt(time);
+
+                        //時間倒數、拍照截圖
+                        app.isCountdown = true;
+                        let clock = window.setInterval(() => {
+                            app.times = timecount--;
+                            if (timecount < 0) {
+                                window.clearInterval(clock);
+                                app.isCountdown = false;
+                                app.alertEmoji = false;
+
+                                app.canvas = app.$refs.canvas;
+                                var context = app.canvas
+                                    .getContext("2d")
+                                    .drawImage(app.video, 0, 0, 480, 360);
+                                app.captures.push(canvas.toDataURL("image/png"));
+                                var imgData = canvas.toDataURL("image/png");
+
+                                const userRequest = axios.create({
+                                    baseURL: "https://eastasia.api.cognitive.microsoft.com/face/v1.0/detect?returnFaceAttributes=emotion",
+                                    headers: {
+                                        "Ocp-Apim-Subscription-Key": "8707bd81a0fb489f81cb0c310f5381dc",
+                                        "Content-Type": "application/octet-stream"
+                                    }
+                                });
+
+                                //回傳分數後透過signalR傳送
+                                userRequest.post('', makeblob(imgData))
+                                    .then(res => {
+                                        //alert(Reflect.get(res.data[0].faceAttributes.emotion, "anger"))
+                                        app.userScore = Math.round(app.userScore + Reflect.get(res.data[0].faceAttributes.emotion, emotions[emoji]) * 100)
+                                        console.log(app.userScore)
+                                        //alert(Reflect.get(res.data[0].faceAttributes.emotion, emotions[emoji]) * 100)
+
+                                        app.connection.invoke('SendMessage', app.userName, '我得' + Math.round(Reflect.get(res.data[0].faceAttributes.emotion, emotions[emoji]) * 100).toString() + '分').catch(function (err) {
+                                            return console.error(err.toString());
+                                        });
+
+                                        //push 自己的 score
+                                        let localUser = $.map(app.scores, function (item, index) {
+                                            return item.user
+                                        }).indexOf(app.userName)
+
+                                        if (localUser > -1) {
+                                            //let thisuserScore = app.scores[app.scores.user.indexOf(user)].score;
+                                            app.scores[localUser].score = app.userScore;
+
+                                        }
+                                        else {
+                                            let score = app.userScore;
+                                            let user = app.userName;
+                                            app.scores.push({ user, score });
+                                        }
+
+
+                                        if (true) {
+                                            app.connection.invoke('SendScore', app.userName, app.userScore.toString()).catch(function (err) {
+                                                return console.error(err.toString());
+                                            });
+                                        }
+
+                                        //app.findRankOne();
+                                    })
+
+                            }
+                        }, 1000);
+
+                    });
+
+                    // -----分數------
+                    thisVue.connection.on('ReceiveScore', function (user, score) {
+                        //thisVue.messages.push({ user, message });
+                        var thisUser = $.map(app.$data.scores, function (item, index) {
+                            return item.user
+                        }).indexOf(user);
+                        if (thisUser > -1) {
+                            //let thisuserScore = app.scores[app.scores.user.indexOf(user)].score;
+                            app.$data.scores[thisUser].score = score;
+
+                        }
+                        else {
+                            app.scores.push({ user, score });
+                        }
+
+                        app.findRankOne()
+                    });
+                }
+
+            });
+        });
+
+
+    </script>
+
+}
+
+

@@ -1,0 +1,13 @@
+@font-face {
+    font-family: "KOMIKAX";
+    src: url('KOMIKAX_.ttf');
+    font-weight: normal;
+    font-style: normal;
+  }
+
+  @font-face {
+    font-family: "UbuntuBold";
+    src: url('Ubuntu-Bold.ttf');
+    font-weight: bolder;
+    font-style: normal;
+  }

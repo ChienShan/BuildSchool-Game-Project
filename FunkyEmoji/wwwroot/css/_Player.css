@@ -1,0 +1,20 @@
+﻿
+
+.player {
+    font-family: 'UbuntuBold';
+}
+
+.members-title {
+    border-radius: 4px;
+    min-height: 100px;
+    margin-bottom: 5px;
+}
+
+.members-name {
+    border-radius: 4px;
+    min-height: 35px;
+}
+
+.bg-purple-light {
+    background: #e5e9f2;
+}
