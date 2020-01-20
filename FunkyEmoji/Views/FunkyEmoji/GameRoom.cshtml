@@ -272,7 +272,7 @@
                                         let localUser = $.map(this.scores, function (item, index) {
                                             return item.user
                                         }).indexOf(this.userName)
-
+                                        app.count++
                                         if (localUser > -1) {
                                             //let thisuserScore = app.scores[app.scores.user.indexOf(user)].score;
                                             this.scores[localUser].score = this.userScore;
@@ -289,7 +289,7 @@
                                                 return console.error(err.toString());
                                             });
                                         }
-                                        //app.findRankOne();
+                                        if (app.count == 2) app.findRankOne();
                                     })
                     }
                 },
