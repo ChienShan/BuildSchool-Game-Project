@@ -17,7 +17,7 @@
                         <div class="infosPlayer">
                             <el-col :xs="4" :sm="6" :md="8" :lg="9" :xl="11">
                                 <el-row>
-                                    <span class="nick"></span>
+                                    <span class="nick">{{userName}}</span>
                                 </el-row>
                                 <el-row>
                                     <span class="points">{{userScore}}<i>pts</i></span>
@@ -33,7 +33,7 @@
                     </audio>
 
                     <el-row>
-                        <h5>Oher Player</h5>
+                        <h5>Other Player</h5>
                     </el-row>
 
                     <div class="others">
@@ -105,28 +105,9 @@
     @*<script src="~/store/index.js"></script>*@
     <script>
         var app
-        var disabled = false
         document.addEventListener("DOMContentLoaded", function (event) {
-
-            //請使用者輸入名字
-            var name;
-            if (localStorage.getItem('User') == null) {
-                localStorage.clear();
-                name = prompt('Enter your name:', '');
-                disabled = true
-                //isDisabled = true;
-            }
-
-            else {
-                name = JSON.parse(localStorage.getItem('User')).account
-            }
-
-            //接使用者名稱
-            document.getElementsByClassName('nick')[0].innerHTML = name
-
-
             //亂數出題目
-            var emotions = ["anger", "contempt", "disgust", "fear", "happiness", "neutral", "sadness", "surprise"];
+            var emotion = ["anger", "contempt", "disgust", "fear", "happiness", "neutral", "sadness", "surprise"];
             var translate = ["臉臭生氣", "鄙視眉毛扭曲", "厭惡把臉弄很皺", "恐懼眉毛傾斜", "快樂露出牙齒", "中性臉冷靜", "悲傷臉很衰", "驚訝嘴巴打超開"];
             var emoji;
 
@@ -148,10 +129,10 @@
                         //倒數
                         isCountdown: false,
                         times: 3,
-                        isDisabled: disabled,
+                        isDisabled: false,
 
                         // -----留言------
-                        userName: name,
+                        userName: '',
                         userMessage: "",
                         connection: "",
                         messages: [],
@@ -159,6 +140,7 @@
                         //-----分數-------
                         userScore: 0,
                         scores: [],
+                        count: 0
                     }
 
 
@@ -173,7 +155,7 @@
                     capture: function () {
                         this.video = this.$refs.video;
 
-                        emoji = Math.floor(Math.random() * emotions.length);
+                        emoji = Math.floor(Math.random() * emotion.length);
                         //把題目位址、時間倒數傳給所有人
                         if (true) {
                             this.connection.invoke("SendSubject", emoji.toString(), this.times.toString()).catch(function (err) {
@@ -197,10 +179,67 @@
 
                                 //畫面重置
                                 this.times = 3;
-                                this.isCountdown = false;
-                                this.alertEmoji = false;
                                 this.isDisabled = false;
                                 this.emojiSubject = "";
+                                this.ScreenShotFaceAPI(emoji)
+                            }
+                        }, 1000);
+                        //alert(`恭喜獲得${Reflect.get(res.faceAttributes.emotion, emotion[emoji]) * 10}分`)
+                    },
+                    // -----留言------
+                    submitCard: function () {
+                        if (this.userName && this.userMessage) {
+                            this.connection.invoke('SendMessage', this.userName, this.userMessage.toString()).catch(function (err) {
+                                return console.error(err.toString());
+                            });
+                            // 欄位 清空
+                            //this.userName = '';
+                            this.userMessage = '';
+                        }
+                    },
+
+                    // -----輸贏-----
+                    findRankOne: function () {
+                        this.count = 0
+                        var first = parseInt(this.scores[0].score)
+                        var second = parseInt(this.scores[1].score)
+                        
+                        if (first >= 200 || second >= 200) {
+                            if (first == second) {
+
+                                this.Show('遊戲結束 兩人平手(❁´◡`❁)')
+                            }
+
+
+                            else if (first < second) {
+                                this.Show(`'遊戲結束 ${this.scores[1].user} 得 ${second} 獲勝'`)
+                            }
+
+                            else if (first > second) {
+                                this.Show(`'遊戲結束 ${this.scores[0].user} 得 ${first} 獲勝'`)
+                            }
+
+                            //畫面轉向
+
+                        }
+
+                    },
+
+                    Show: function (string) {
+                        this.connection.invoke('SendMessage', '遊戲', string).catch(function (err) {
+                            return console.error(err.toString());
+                        });
+                        document.getElementsByClassName('scroll')[0].scrollTop = document.getElementsByClassName('scroll')[0].scrollHeight
+                        this.$alert(string, '遊戲結束', {
+                            confirmButtonText: '離開遊戲',
+                            callback: action => {
+                                location.href = '../../FunkyEmoji/Login';
+                            }
+                        });
+                    },
+                    ScreenShotFaceAPI: function(emojis){
+                                this.isCountdown = false;
+                                this.alertEmoji = false;
 
                                 this.canvas = this.$refs.canvas;
                                 var context = this.canvas
@@ -221,32 +260,28 @@
                                 userRequest.post('', makeblob(imgData))
                                     .then(res => {
                                         //alert(Reflect.get(res.data[0].faceAttributes.emotion, "anger"))
-                                        this.userScore = Math.round(this.userScore + Reflect.get(res.data[0].faceAttributes.emotion, emotions[emoji]) * 100)
-
-                                        console.log(this.userScore);
+                                        var simplescore = Math.round(Reflect.get(res.data[0].faceAttributes.emotion, emotion[emojis]) * 100)
+                                        this.userScore = Math.round(this.userScore + simplescore)
                                         //alert(Reflect.get(res.data[0].faceAttributes.emotion, emotions[emoji]) * 100)
 
-                                        this.connection.invoke('SendMessage', this.userName, '我得' + Math.round(Reflect.get(res.data[0].faceAttributes.emotion, emotions[emoji]) * 100).toString() + '分').catch(function (err) {
+                                        this.connection.invoke('SendMessage', this.userName, '我得' + simplescore.toString() + '分').catch(function (err) {
                                             return console.error(err.toString());
                                         });
 
-                                        //push localhost score
+                                        //push 自己的 score
                                         let localUser = $.map(this.scores, function (item, index) {
                                             return item.user
-                                        }).indexOf(name)
+                                        }).indexOf(this.userName)
 
                                         if (localUser > -1) {
                                             //let thisuserScore = app.scores[app.scores.user.indexOf(user)].score;
                                             this.scores[localUser].score = this.userScore;
-
                                         }
                                         else {
                                             let score = this.userScore;
-                                            let user = name;
+                                            let user = this.userName;
                                             this.scores.push({ user, score });
                                         }
-
-
 
 
                                         if (true) {
@@ -254,64 +289,8 @@
                                                 return console.error(err.toString());
                                             });
                                         }
-
-                                        //this.findRankOne();
+                                        //app.findRankOne();
                                     })
-
-                            }
-                        }, 1000);
-
-
-                        //alert(`恭喜獲得${Reflect.get(res.faceAttributes.emotion, emotion[emoji]) * 10}分`)
-                    },
-                    // -----留言------
-                    submitCard: function () {
-                        if (this.userName && this.userMessage) {
-                            this.connection.invoke('SendMessage', this.userName, this.userMessage.toString()).catch(function (err) {
-                                return console.error(err.toString());
-                            });
-
-                            // 欄位 清空
-                            //this.userName = '';
-                            this.userMessage = '';
-                        }
-                    },
-
-                    // -----輸贏-----
-                    findRankOne: function () {
-
-                        if (app.scores[0].score >= 200 || app.scores[1].score >= 200) {
-
-                            if (app.scores[0].score == app.scores[1].score) {
-
-                                app.Show('遊戲結束 兩人平手(❁´◡`❁)')
-                            }
-
-
-                            else if (app.scores[0].score < app.scores[1].score) {
-                                app.Show(`'遊戲結束 ${app.scores[1].user} 得 ${app.scores[1].score} 獲勝'`)
-                            }
-
-                            else if (app.scores[0].score > app.scores[1].score) {
-                                app.Show(`'遊戲結束 ${app.scores[0].user} 得 ${app.scores[0].score} 獲勝'`)
-                            }
-
-                            //畫面轉向
-
-                        }
-
-                    },
-
-                    Show: function (string) {
-                        this.connection.invoke('SendMessage', '遊戲', string).catch(function (err) {
-                            return console.error(err.toString());
-                        });
-                        this.$alert(string, '遊戲結束', {
-                            confirmButtonText: '離開遊戲',
-                            callback: action => {
-                                location.href = '../../FunkyEmoji/Login';
-                            }
-                        });
                     }
                 },
                 created: function () {
@@ -323,8 +302,21 @@
                     this.connection.start().catch(function (err) {
                         return console.error(err.toString());
                     });
-
-
+                    if (localStorage.getItem('User') == null) {
+                        localStorage.clear();
+                        this.isDisabled = true
+                        //請使用者輸入名字
+                        this.$prompt('Enter your name:','',{
+                            confirmButtonText: '確定',
+                            cancelButtonText: '取消'
+                        }).then(({value}) => {
+                            this.userName = value
+                        })
+                        //isDisabled = true;
+                    }
+                    else {
+                        this.userName = JSON.parse(localStorage.getItem('User')).account
+                    }
                     //if (!this.user.account) {
                     //    location.href = 'GameRoom';
                     //}
@@ -334,14 +326,14 @@
                     //this.getVideo();
 
                     // -----留言------
-                    var thisVue = this;
-                    if (thisVue.connection == "") thisVue.connection.start();
-                    thisVue.connection.on('ReceiveMessage', function (user, message) {
-                        thisVue.messages.push({ user, message });
+                    if (this.connection == "") this.connection.start();
+                    this.connection.on('ReceiveMessage', function (user, message) {
+                        app.messages.push({ user, message });
+                        document.getElementsByClassName('scroll')[0].scrollTop = document.getElementsByClassName('scroll')[0].scrollHeight
                     });
 
                     // -----題目、時間倒數、截圖分數顯示-----
-                    thisVue.connection.on('ReceiveSubject', function (emoji, time) {
+                    this.connection.on('ReceiveSubject', function (emoji, time) {
                         app.video = app.$refs.video;
 
                         //顯示題目
@@ -356,83 +348,28 @@
                             app.times = timecount--;
                             if (timecount < 0) {
                                 window.clearInterval(clock);
-                                app.isCountdown = false;
-                                app.alertEmoji = false;
-
-                                app.canvas = app.$refs.canvas;
-                                var context = app.canvas
-                                    .getContext("2d")
-                                    .drawImage(app.video, 0, 0, 480, 360);
-                                app.captures.push(canvas.toDataURL("image/png"));
-                                var imgData = canvas.toDataURL("image/png");
-
-                                const userRequest = axios.create({
-                                    baseURL: "https://eastasia.api.cognitive.microsoft.com/face/v1.0/detect?returnFaceAttributes=emotion",
-                                    headers: {
-                                        "Ocp-Apim-Subscription-Key": "8707bd81a0fb489f81cb0c310f5381dc",
-                                        "Content-Type": "application/octet-stream"
-                                    }
-                                });
-
-                                //回傳分數後透過signalR傳送
-                                userRequest.post('', makeblob(imgData))
-                                    .then(res => {
-                                        //alert(Reflect.get(res.data[0].faceAttributes.emotion, "anger"))
-                                        app.userScore = Math.round(app.userScore + Reflect.get(res.data[0].faceAttributes.emotion, emotions[emoji]) * 100)
-                                        console.log(app.userScore)
-                                        //alert(Reflect.get(res.data[0].faceAttributes.emotion, emotions[emoji]) * 100)
-
-                                        app.connection.invoke('SendMessage', app.userName, '我得' + Math.round(Reflect.get(res.data[0].faceAttributes.emotion, emotions[emoji]) * 100).toString() + '分').catch(function (err) {
-                                            return console.error(err.toString());
-                                        });
-
-                                        //push 自己的 score
-                                        let localUser = $.map(app.scores, function (item, index) {
-                                            return item.user
-                                        }).indexOf(app.userName)
-
-                                        if (localUser > -1) {
-                                            //let thisuserScore = app.scores[app.scores.user.indexOf(user)].score;
-                                            app.scores[localUser].score = app.userScore;
-
-                                        }
-                                        else {
-                                            let score = app.userScore;
-                                            let user = app.userName;
-                                            app.scores.push({ user, score });
-                                        }
-
-
-                                        if (true) {
-                                            app.connection.invoke('SendScore', app.userName, app.userScore.toString()).catch(function (err) {
-                                                return console.error(err.toString());
-                                            });
-                                        }
-
-                                        //app.findRankOne();
-                                    })
-
+                                app.ScreenShotFaceAPI(emoji)
                             }
                         }, 1000);
 
                     });
 
                     // -----分數------
-                    thisVue.connection.on('ReceiveScore', function (user, score) {
+                    this.connection.on('ReceiveScore', function (user, score) {
                         //thisVue.messages.push({ user, message });
+                        app.count++
                         var thisUser = $.map(app.$data.scores, function (item, index) {
                             return item.user
                         }).indexOf(user);
                         if (thisUser > -1) {
                             //let thisuserScore = app.scores[app.scores.user.indexOf(user)].score;
                             app.$data.scores[thisUser].score = score;
-
                         }
                         else {
                             app.scores.push({ user, score });
                         }
-
-                        app.findRankOne()
+                        if(app.count == 2)app.findRankOne()
+                        document.getElementsByClassName('scroll')[0].scrollTop = document.getElementsByClassName('scroll')[0].scrollHeight
                     });
                 }
 
